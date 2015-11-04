@@ -6,7 +6,8 @@ import java.sql.DriverManager;
 public class DBConnection {
 
 	// Change the parameters accordingly.
-	private static String dbUrl = "jdbc:mysql://phoenix15:3306/dataset?useUnicode=true&characterEncoding=utf-8";
+//	private static String dbUrl = "jdbc:mysql://phoenix15:3306/dataset?useUnicode=true&characterEncoding=utf-8";
+	private static String dbUrl = "jdbc:mysql://localhost:3306/dblp?useUnicode=true&characterEncoding=utf-8";
 	private static String user = "root";
 	private static String password = "passwd";
 

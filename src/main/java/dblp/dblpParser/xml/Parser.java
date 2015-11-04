@@ -17,6 +17,9 @@ import org.xml.sax.helpers.DefaultHandler;
 
 import dblp.dblpParser.db.DBConnection;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 public class Parser {
 
 	private Connection conn;
@@ -30,6 +33,24 @@ public class Parser {
 	StringBuffer author;
 
 	private class ConfigHandler extends DefaultHandler {
+		
+		public String hashMD5(String str){
+		
+	        MessageDigest md;
+	        StringBuffer sb = new StringBuffer();
+			try {
+				md = MessageDigest.getInstance("MD5");
+				md.update(str.getBytes());
+		        byte byteData[] = md.digest();
+		        for (int i = 0; i < byteData.length; i++) {
+		         sb.append(Integer.toString((byteData[i] & 0xff) + 0x100, 16).substring(1));
+		        }
+			} catch (NoSuchAlgorithmException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+	        return sb.toString();
+		}
 		
 		public void startElement(String namespaceURI, String localName,
 				String rawName, Attributes atts) throws SAXException {
@@ -57,7 +78,7 @@ public class Parser {
 			} else {
 				curElement = Element.OTHER;
 			}
-			line++;
+			
 		}
 
 		public void characters(char[] ch, int start, int length)
@@ -99,20 +120,28 @@ public class Parser {
 						errors++;
 						return;
 					}
+					if (paper.year < 2014) {
+						return;
+					}
 					stmt_inproc.setString(1, paper.title);
 					stmt_inproc.setInt(2, paper.year);
 					stmt_inproc.setString(3, paper.conference);
 					stmt_inproc.setString(4, paper.key);
+					stmt_inproc.setString(5, "p_"+hashMD5(paper.key));
 					stmt_inproc.addBatch();
 					for (String author : paper.authors) {
 						stmt_author.setString(1, author);
 						stmt_author.setString(2, paper.key);
+						stmt_author.setString(3, "a_"+hashMD5(author));
+						stmt_author.setString(4, "p_"+hashMD5(paper.key));
 						stmt_author.addBatch();
 					}
 					for (String cited : paper.citations) {
 						if (!cited.equals("...")) {
 							stmt_cite.setString(1, paper.key);
 							stmt_cite.setString(2, cited);
+							stmt_cite.setString(3, "p_"+hashMD5(paper.key));
+							stmt_cite.setString(4, "p_"+hashMD5(cited));
 							stmt_cite.addBatch();
 						}
 					}
@@ -134,6 +163,7 @@ public class Parser {
 					stmt_conf.setString(1, conf.key);
 					stmt_conf.setString(2, conf.name);
 					stmt_conf.setString(3, conf.detail);
+					stmt_conf.setString(4, "c_"+hashMD5(conf.key));
 					stmt_conf.addBatch();
 				} catch (SQLException e) {
 					e.printStackTrace();
@@ -141,6 +171,7 @@ public class Parser {
 					System.exit(0);
 				}
 			}
+			line++;
 			if (line % 10000 == 0) {
 				try {
 					stmt_inproc.executeBatch();
@@ -183,13 +214,13 @@ public class Parser {
 			conn = DBConnection.getConn();
 			conn.setAutoCommit(false);
 			stmt_inproc = conn
-					.prepareStatement("insert into paper(title,year,conference,paper_key) values (?,?,?,?)");
+					.prepareStatement("insert into paper(title,year,conference,paper_key,paper_hash) values (?,?,?,?,?)");
 			stmt_author = conn
-					.prepareStatement("insert into author(name,paper_key) values (?,?)");
+					.prepareStatement("insert into author(name,paper_key,name_hash,paper_hash) values (?,?,?,?)");
 			stmt_cite = conn
-					.prepareStatement("insert into citation(paper_cite_key,paper_cited_key) values (?,?)");
+					.prepareStatement("insert into citation(paper_cite_key,paper_cited_key,paper_cite_hash,paper_cited_hash) values (?,?,?,?)");
 			stmt_conf = conn
-					.prepareStatement("insert into conference(conf_key,name,detail) values (?,?,?)");
+					.prepareStatement("insert into conference(conf_key,name,detail,conf_hash) values (?,?,?,?)");
 			SAXParserFactory parserFactory = SAXParserFactory.newInstance();
 			SAXParser parser = parserFactory.newSAXParser();
 			ConfigHandler handler = new ConfigHandler();
